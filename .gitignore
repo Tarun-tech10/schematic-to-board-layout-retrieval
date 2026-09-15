@@ -1,0 +1,10 @@
+SBL_DATA/
+SBL.zip
+cache/
+*.pt
+*.npy
+*.csv
+!sample_submission_head.csv
+venv/
+__pycache__/
+submission_out.csv
