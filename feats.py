@@ -30,6 +30,18 @@ def disk(r):
     y, x = np.ogrid[-r:r+1, -r:r+1]
     return (x*x + y*y) <= r*r
 
+K8=np.ones((3,3),bool)
+
+def net_stats(mask, pxmm, cap=4000):
+    lab, n = ndimage.label(mask, structure=K8)
+    if n == 0:
+        return [0.0]*4
+    sz = np.bincount(lab.ravel())[1:]/pxmm**2
+    big = sz[sz > 0.5]
+    return [float(n), float(len(big)), float(big.max() if len(big) else 0.0),
+            float(np.median(big) if len(big) else 0.0)]
+
+
 def lay_feat(path):
     img = np.asarray(Image.open(path).convert('RGB'))
     H, W = img.shape[:2]
@@ -37,7 +49,10 @@ def lay_feat(path):
     pad = ((cls == 2) | (cls == 3)) & (alp > 110)
     out = [W/LPM, H/LPM, W*H/LPM**2]
     if pad.sum() < 3:
-        return np.array(out + [0.0]*(len(NBIN)+len(PAD_E)-1+8), np.float32)
+        cu = ((cls == 0) | (cls == 1) | (cls == 2) | (cls == 3)) & (alp > 90)
+        fr = ((cls == 0) | (cls == 2) | (cls == 3)) & (alp > 90)
+        return np.array(out + [0.0]*(len(NBIN)+len(PAD_E)-1+8)
+                        + net_stats(cu, LPM) + net_stats(fr, LPM), np.float32)
     lab, n = ndimage.label(pad)
     ar = np.bincount(lab.ravel())[1:] / LPM**2
     keep = ar > 0.03
@@ -54,7 +69,10 @@ def lay_feat(path):
     out += [float(len(ar)), float(ar.sum()), float(len(per)), float(np.median(ar) if len(ar) else 0),
             float(np.percentile(ar, 90) if len(ar) else 0), float(ar.max() if len(ar) else 0),
             float((per >= 8).sum()), float(per.max() if len(per) else 0)]
-    return np.array(out + list(hist_counts(per)) + list(areahist(ar, PAD_E)), np.float32)
+    cu = ((cls == 0) | (cls == 1) | (cls == 2) | (cls == 3)) & (alp > 90)
+    fr = ((cls == 0) | (cls == 2) | (cls == 3)) & (alp > 90)
+    nets = net_stats(cu, LPM) + net_stats(fr, LPM)
+    return np.array(out + list(hist_counts(per)) + list(areahist(ar, PAD_E)) + nets, np.float32)
 
 def sch_feat(path):
     img = np.asarray(Image.open(path).convert('RGB'))
@@ -69,19 +87,19 @@ def sch_feat(path):
     good = np.nonzero(bar > 8.0)[0] + 1
     pins = np.zeros(len(good), np.float32)
     if len(good):
-        keep = np.isin(bl, good)
-        near = ndimage.binary_dilation(keep, disk(0.7*SPM))
-        far  = ndimage.binary_dilation(keep, disk(2.6*SPM))
-        stub = (far & ~near) & ink
-        sl, sn = ndimage.label(stub)
-        if sn:
-            _, ii = ndimage.distance_transform_edt(~keep, return_indices=True)
-            own = bl[ii[0], ii[1]]
-            sc = ndimage.center_of_mass(stub, sl, range(1, sn+1))
-            sc = np.array(sc).astype(int)
-            oid = own[np.clip(sc[:, 0], 0, H-1), np.clip(sc[:, 1], 0, W-1)]
-            cnt = np.bincount(oid, minlength=bn+1)
-            pins = cnt[good].astype(np.float32)
+        # attribute pin stubs per body on a local crop -- a full-resolution EDT over the whole
+        # sheet costs more than everything else in this file put together
+        objs = ndimage.find_objects(bl)
+        near_k, far_k = disk(0.7*SPM), disk(2.6*SPM)
+        pad = int(far_k.shape[0]//2 + 2)
+        for t, g in enumerate(good):
+            sl = objs[g-1]
+            y0 = max(0, sl[0].start-pad); y1 = min(H, sl[0].stop+pad)
+            x0 = max(0, sl[1].start-pad); x1 = min(W, sl[1].stop+pad)
+            m = bl[y0:y1, x0:x1] == g
+            ring = ndimage.binary_dilation(m, far_k) & ~ndimage.binary_dilation(m, near_k)
+            _, ns = ndimage.label(ring & ink[y0:y1, x0:x1])
+            pins[t] = ns
     small = ink & ~ndimage.binary_dilation(body, disk(0.5*SPM))
     slab, sn2 = ndimage.label(small)
     sar = np.bincount(slab.ravel())[1:]/SPM**2 if sn2 else np.zeros(0)
@@ -89,7 +107,13 @@ def sch_feat(path):
     out += [float(len(good)), float(bar[bar > 8].sum() if bn else 0), float(pins.sum()),
             float(pins.max() if len(pins) else 0), float((pins >= 8).sum()),
             float(len(sar)), float(sar.sum()), float(np.median(sar) if len(sar) else 0)]
-    return np.array(out + list(hist_counts(pins)) + list(areahist(bar[bar > 8] if bn else np.zeros(0), SYM_E)), np.float32)
+    # every pin that is wired shows up as one wire/symbol contact blob: the most reliable
+    # global pin-count proxy available (per-body stub attribution undercounts badly)
+    contact = ndimage.binary_dilation(wire, K8) & ndimage.binary_dilation(ink, K8)
+    _, ncon = ndimage.label(contact, structure=K8)
+    nets = [float(ncon)] + net_stats(ndimage.binary_closing(wire, K8), SPM) +            net_stats(ndimage.binary_dilation(wire | ink, K8), SPM)
+    return np.array(out + list(hist_counts(pins)) + list(areahist(bar[bar > 8] if bn else np.zeros(0), SYM_E))
+                    + nets, np.float32)
 
 def run(paths, fn, tag):
     res = [None]*len(paths); t0 = time.time()

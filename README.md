@@ -91,8 +91,10 @@ expected-reciprocal-rank the leaderboard uses (`ev.py`).
 |---|---|---|
 | constant / random (chance) | 0.1799 | 0.0000 |
 | ridge on the 29 scalars, cosine score (`probe2.py`) | 0.2468 | **0.0815** |
-| ridge on 29 scalars + 30 structural descriptors | 0.2689 | **0.1086** |
-| two-tower CNN (raster + scalars), epoch 25 of 50 | 0.3233 | **0.1748** |
+| ridge, + structural descriptors (pads, footprints, symbols) | 0.2695 | **0.1093** |
+| ridge, + net counts and wire/symbol contacts | 0.2818 | **0.1242** |
+| two-tower CNN, in-batch InfoNCE only (run a0, best epoch) | 0.3236 | **0.1752** |
+| two-tower CNN + aux regression + pool loss | *running* | |
 
 **The candidate pools leak the answer through their own construction — see [LEAK.md](LEAK.md).**
 Constant scores plus Sinkhorn over the pool-membership graph reach 37.8% top-1 (corrected MRR
@@ -138,9 +140,18 @@ from geometry, and at the working resolution (1.3â€“2.0 px/mm) rendered tex
 - [x] Pool loss made affordable - it samples `--knn` of the 20 candidates, not all 20.
 - [x] Audited the pool construction for leakage; found a large one, documented it, declined it.
 - [x] Clean matching constraint via dense Sinkhorn (`dense.py`), worth +0.007.
-- [ ] **Two-tower CNN training** - 0.1748 at epoch 25/50 and still climbing.
-- [ ] Auxiliary cross-view regression: each tower predicts the other view's structural
-      descriptors, so a pair supervises ~50 targets instead of one contrastive bit.
+- [x] First CNN run: **0.1752**, best at epoch 30. Past that it overfits hard - train loss
+      falls 3.87 -> 0.57 while validation decays to 0.166. 4700 pairs is not many.
+- [x] Connectivity descriptors: components of the wire mask against components of the copper
+      mask, plus the wire/symbol contact count (= wired pins). Best cross-view correlation
+      found, 0.34 log-log, against 0.27 for the next best. Ridge 0.1093 -> **0.1242**.
+- [x] `solution.py` written and smoke-tested end to end on a 60-row subset; memmap-backed so
+      the 5.4 GB of rasters never has to be resident.
+- [ ] **Run b0 in progress**: auxiliary cross-view regression (each tower predicts the other
+      view's descriptors, so a pair supervises ~50 targets rather than one contrastive bit)
+      plus the pool hard-negative term, dropout 0.2 and decay 3e-4 against the overfitting.
+- [ ] Tune the blend weight and Sinkhorn temperature on the holdout (`tune.py`).
+- [ ] Final: seed ensemble trained on all 4700 pairs, dihedral TTA, submission.
 - [ ] Sweep resolution / px-per-mm â€” the current layout raster may be too coarse to count 0603 pads.
 - [ ] Seed ensemble plus D4 test-time augmentation on the layout tower.
 - [ ] Blend the CNN score with the scalar-feature scorer.

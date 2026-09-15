@@ -20,7 +20,8 @@ d=load_all()
 S,L,SM,LM=d['S'],d['L'],d['SM'],d['LM']; Q,CD,T=d['Q'],d['CD'],d['T']
 n=len(Q); rng=np.random.RandomState(12345); perm=rng.permutation(n)
 val=perm[:a.nval]; fit=perm[a.nval:]
-valquery=set(Q[val].tolist()); vallay=set(T[val].tolist())
+valquery=set(Q[val].tolist())
+ISVAL=np.zeros(len(SM),bool); ISVAL[T[val]]=True    # held-out layouts: never seen, not even as negatives
 print('fit %d val %d'%(len(fit),len(val)))
 
 def getS(ix):
@@ -94,8 +95,9 @@ for ep in range(a.epochs):
                 loss=loss+a.auxw*0.5*(F.smooth_l1_loss(pa,gl)+F.smooth_l1_loss(pb,gs))
             if a.poolw>0:
                 cand=CD[b]
-                mask=(cand!=ti[:,None])
-                pick=np.stack([np.random.choice(cand[r][mask[r]],a.knn,replace=False) for r in range(len(b))])
+                mask=(cand!=ti[:,None])&(~ISVAL[cand])
+                pick=np.stack([np.random.choice(cand[r][mask[r]],a.knn,
+                               replace=mask[r].sum()<a.knn) for r in range(len(b))])
                 flat=pick.reshape(-1)
                 xc=aug_l(getL(flat),a.aug)
                 ec=model.b(xc,LMg[torch.from_numpy(flat).to(dev)]).view(len(b),a.knn,-1)
