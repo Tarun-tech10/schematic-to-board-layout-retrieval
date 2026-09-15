@@ -91,7 +91,14 @@ expected-reciprocal-rank the leaderboard uses (`ev.py`).
 |---|---|---|
 | constant / random (chance) | 0.1799 | 0.0000 |
 | ridge on the 29 scalars, cosine score (`probe2.py`) | 0.2468 | **0.0815** |
-| two-tower CNN | *in progress* | |
+| ridge on 29 scalars + 30 structural descriptors | 0.2689 | **0.1086** |
+| two-tower CNN (raster + scalars), epoch 25 of 50 | 0.3233 | **0.1748** |
+
+**The candidate pools leak the answer through their own construction — see [LEAK.md](LEAK.md).**
+Constant scores plus Sinkhorn over the pool-membership graph reach 37.8% top-1 (corrected MRR
+0.318) using no image data whatsoever. We are not using it, and the file explains why, what it
+is not (complexity matching and candidate frequency are both clean), and what the honest
+version of the matching constraint looks like.
 
 Useful negative result: the organisers' "complexity-matched" distractor pools are only **loosely**
 matched â€” pool spread is 0.95x the global spread on every statistic measured. Coarse size and

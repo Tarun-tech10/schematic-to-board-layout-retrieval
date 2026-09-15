@@ -8,13 +8,14 @@ p=argparse.ArgumentParser()
 p.add_argument('--epochs',type=int,default=60); p.add_argument('--bs',type=int,default=48)
 p.add_argument('--lr',type=float,default=2e-3); p.add_argument('--wd',type=float,default=1e-4)
 p.add_argument('--emb',type=int,default=256); p.add_argument('--drop',type=float,default=0.1)
-p.add_argument('--poolw',type=float,default=1.0); p.add_argument('--seed',type=int,default=0)
+p.add_argument('--poolw',type=float,default=1.0); p.add_argument('--knn',type=int,default=4); p.add_argument('--seed',type=int,default=0)
 p.add_argument('--nval',type=int,default=700); p.add_argument('--tag',type=str,default='r0')
-p.add_argument('--aug',type=float,default=1.0)
+p.add_argument('--aug',type=float,default=1.0); p.add_argument('--auxw',type=float,default=1.0)
 a=p.parse_args()
 
 torch.manual_seed(a.seed); np.random.seed(a.seed)
 dev='cuda' if torch.cuda.is_available() else 'cpu'
+torch.backends.cudnn.benchmark=True
 d=load_all()
 S,L,SM,LM=d['S'],d['L'],d['SM'],d['LM']; Q,CD,T=d['Q'],d['CD'],d['T']
 n=len(Q); rng=np.random.RandomState(12345); perm=rng.permutation(n)
@@ -83,20 +84,25 @@ for ep in range(a.epochs):
         xs=getS(qi); xl=getL(ti)
         xs=jitter(xs,a.aug*0.6); xl=aug_l(xl,a.aug)
         with torch.amp.autocast(dev,dtype=torch.float16,enabled=(dev=='cuda')):
-            ea=model.a(xs,SMg[torch.from_numpy(qi).to(dev)])
-            eb=model.b(xl,LMg[torch.from_numpy(ti).to(dev)])
+            gs=SMg[torch.from_numpy(qi).to(dev)]; gl=LMg[torch.from_numpy(ti).to(dev)]
+            ea,pa=model.a(xs,gs,aux=True)
+            eb,pb=model.b(xl,gl,aux=True)
             lg=model.scale()*ea@eb.t()
             tgt=torch.arange(len(b),device=dev)
             loss=0.5*(F.cross_entropy(lg,tgt)+F.cross_entropy(lg.t(),tgt))
+            if a.auxw>0:
+                loss=loss+a.auxw*0.5*(F.smooth_l1_loss(pa,gl)+F.smooth_l1_loss(pb,gs))
             if a.poolw>0:
-                cand=CD[b]                                    # (B,20)
-                flat=cand.reshape(-1)
-                xc=getL(flat)
-                xc=aug_l(xc,a.aug)
-                ec=model.b(xc,LMg[torch.from_numpy(flat).to(dev)]).view(len(b),20,-1)
-                lg2=model.scale()*(ea[:,None,:]*ec).sum(-1)
-                tc=torch.from_numpy(np.argmax(cand==ti[:,None],1)).to(dev)
-                loss=loss+a.poolw*F.cross_entropy(lg2,tc)
+                cand=CD[b]
+                mask=(cand!=ti[:,None])
+                pick=np.stack([np.random.choice(cand[r][mask[r]],a.knn,replace=False) for r in range(len(b))])
+                flat=pick.reshape(-1)
+                xc=aug_l(getL(flat),a.aug)
+                ec=model.b(xc,LMg[torch.from_numpy(flat).to(dev)]).view(len(b),a.knn,-1)
+                neg=model.scale()*(ea[:,None,:]*ec).sum(-1)
+                pos=model.scale()*(ea*eb).sum(-1,keepdim=True)
+                loss=loss+a.poolw*F.cross_entropy(torch.cat([pos,neg],1),
+                                                  torch.zeros(len(b),dtype=torch.long,device=dev))
         opt.zero_grad(set_to_none=True)
         scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); sch.step()
         tot+=float(loss); nb+=1

@@ -1,10 +1,7 @@
 import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 
 class Tower(nn.Module):
-    """Conv trunk + scalar-descriptor MLP -> L2-normalised embedding, plus an auxiliary head
-    that predicts the OTHER view's structural descriptors (dense supervision: 50-60 targets
-    per pair instead of the single bit a contrastive loss provides)."""
-    def __init__(s, cin, nmeta, naux, widths=(32,64,96,128,192,256), emb=256, drop=0.1):
+    def __init__(s, cin, nmeta, widths=(32,64,96,128,192,256), emb=256, drop=0.1):
         super().__init__()
         L=[]; c=cin
         for i,w in enumerate(widths):
@@ -13,20 +10,15 @@ class Tower(nn.Module):
             c=w
         s.body=nn.Sequential(*L); s.drop=nn.Dropout(drop)
         s.mlp=nn.Sequential(nn.Linear(nmeta,128), nn.BatchNorm1d(128), nn.ReLU(True), nn.Linear(128,128), nn.ReLU(True))
-        s.trunk=nn.Sequential(nn.Linear(2*c+128,512), nn.BatchNorm1d(512), nn.ReLU(True))
-        s.emb=nn.Linear(512,emb)
-        s.aux=nn.Linear(512,naux)
-    def forward(s,x,m,aux=False):
+        s.head=nn.Sequential(nn.Linear(2*c+128,512), nn.BatchNorm1d(512), nn.ReLU(True), nn.Linear(512,emb))
+    def forward(s,x,m):
         h=s.body(x)
         g=torch.cat([h.mean((2,3)), h.amax((2,3)), s.mlp(m)],1)
-        t=s.trunk(s.drop(g))
-        e=F.normalize(s.emb(t),dim=1)
-        return (e, s.aux(t)) if aux else e
+        return F.normalize(s.head(s.drop(g)),dim=1)
 
 class Duo(nn.Module):
     def __init__(s, cs, ms, cl, ml, emb=256, drop=0.1):
         super().__init__()
-        s.a=Tower(cs,ms,ml,emb=emb,drop=drop)      # schematic tower predicts layout descriptors
-        s.b=Tower(cl,ml,ms,emb=emb,drop=drop)      # layout tower predicts schematic descriptors
+        s.a=Tower(cs,ms,emb=emb,drop=drop); s.b=Tower(cl,ml,emb=emb,drop=drop)
         s.logit_scale=nn.Parameter(torch.tensor(np.log(1/0.07),dtype=torch.float32))
     def scale(s): return s.logit_scale.exp().clamp(max=100.0)
