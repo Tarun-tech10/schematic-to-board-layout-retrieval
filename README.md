@@ -93,8 +93,12 @@ expected-reciprocal-rank the leaderboard uses (`ev.py`).
 | ridge on the 29 scalars, cosine score (`probe2.py`) | 0.2468 | **0.0815** |
 | ridge, + structural descriptors (pads, footprints, symbols) | 0.2695 | **0.1093** |
 | ridge, + net counts and wire/symbol contacts | 0.2818 | **0.1242** |
-| two-tower CNN, in-batch InfoNCE only (run a0, best epoch) | 0.3236 | **0.1752** |
-| two-tower CNN + aux regression + pool loss | *running* | |
+| two-tower CNN, in-batch InfoNCE only (run a0) | 0.3236 | **0.1752** |
+| two-tower CNN + aux regression + pool negatives (run b0) | 0.3538 | **0.2120** |
+
+On test-like pools (own sampler, closed 1:1 universe — harder than the official ones, and the
+only fair place to measure anything that touches pool structure): network alone with dihedral
+TTA 0.1698, blended with the ridge 0.1722, plus dense Sinkhorn **0.1889**.
 
 **The candidate pools leak the answer through their own construction — see [LEAK.md](LEAK.md).**
 Constant scores plus Sinkhorn over the pool-membership graph reach 37.8% top-1 (corrected MRR
@@ -147,11 +151,14 @@ from geometry, and at the working resolution (1.3â€“2.0 px/mm) rendered tex
       found, 0.34 log-log, against 0.27 for the next best. Ridge 0.1093 -> **0.1242**.
 - [x] `solution.py` written and smoke-tested end to end on a 60-row subset; memmap-backed so
       the 5.4 GB of rasters never has to be resident.
-- [ ] **Run b0 in progress**: auxiliary cross-view regression (each tower predicts the other
-      view's descriptors, so a pair supervises ~50 targets rather than one contrastive bit)
-      plus the pool hard-negative term, dropout 0.2 and decay 3e-4 against the overfitting.
-- [ ] Tune the blend weight and Sinkhorn temperature on the holdout (`tune.py`).
-- [ ] Final: seed ensemble trained on all 4700 pairs, dihedral TTA, submission.
+- [x] **Run b0: 0.1752 -> 0.2120.** Auxiliary cross-view regression is the single biggest
+      change made — each tower predicts the other view's descriptors, so a pair supervises
+      ~50 targets instead of one contrastive bit. Plus pool hard negatives, dropout 0.2,
+      decay 3e-4. Validation is flat from epoch 20 to 40 (0.195-0.212, inside noise), so
+      25 epochs ship rather than 40.
+- [x] Blend weight and Sinkhorn temperature tuned on the holdout: a broad plateau, every
+      blend 0.1-0.3 with tau 0.3-0.8 landing in 0.181-0.189, so the middle (0.25, 0.5) ships.
+- [ ] Final run: 3 seeds on all 4700 pairs, dihedral TTA, submission.
 - [ ] Sweep resolution / px-per-mm â€” the current layout raster may be too coarse to count 0603 pads.
 - [ ] Seed ensemble plus D4 test-time augmentation on the layout tower.
 - [ ] Blend the CNN score with the scalar-feature scorer.

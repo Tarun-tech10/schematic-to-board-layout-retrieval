@@ -124,13 +124,41 @@ axes the features use, which the real sampler does not.
 
 ## 7. Results
 
-| scorer | raw MRR | corrected |
+Two pool types are reported and they are **not** comparable to each other.
+
+*Official pools* are the organisers' own candidate lists for held-out queries. Base scores are
+per-(query, candidate) and pool-independent, so this is the right yardstick for them, and it
+is the closest estimate of leaderboard difficulty because the test pools come from the same
+sampler.
+
+| scorer, official pools | raw MRR | corrected |
 |---|---|---|
 | constant / random | 0.1799 | 0.0000 |
-| ridge on 29 global scalars | 0.2466 | 0.0814 |
-| ridge on scalars + structural descriptors | 0.2695 | 0.1093 |
+| ridge, 29 global scalars | 0.2466 | 0.0814 |
+| ridge, + pad/footprint/symbol descriptors | 0.2695 | 0.1093 |
+| ridge, + connectivity descriptors | 0.2818 | 0.1242 |
 | two-tower CNN, in-batch InfoNCE only | 0.3236 | 0.1752 |
-| full model | TBD | TBD |
+| two-tower CNN, + auxiliary regression + pool negatives | 0.3538 | **0.2120** |
+
+*Test-like pools* are built by an independently written sampler over held-out layouts only, so
+the 1:1 universe is closed exactly as it is at test time. Anything that touches pool structure
+has to be measured here. These pools are **harder** than the official ones for this model,
+because the independent sampler matches distractors on exactly the board-size and pad-count
+axes the features use, which the real sampler does not.
+
+| scorer, test-like pools | raw MRR | corrected |
+|---|---|---|
+| descriptor ridge alone | 0.2669 | 0.1061 |
+| network alone, dihedral TTA | 0.3191 | 0.1698 |
+| + blend with the ridge | 0.3211 | 0.1722 |
+| + dense Sinkhorn | 0.3348 | **0.1889** |
+
+The blend weight and Sinkhorn temperature sit on a broad plateau — every combination of blend
+0.1–0.3 with tau 0.3–0.8 lands in 0.181–0.189 — so the shipped values (0.25, 0.5) are taken
+from the middle of it rather than the argmax.
+
+The auxiliary regression is the single change that mattered most: 0.1752 to 0.2120, which is
+about five standard errors on a 700-query holdout.
 
 ## 8. Things that were tried and did not work
 
@@ -141,7 +169,13 @@ axes the features use, which the real sampler does not.
 - **Linear double-centering** of the score matrix, the τ→∞ limit of Sinkhorn, is worse than
   Sinkhorn proper (0.097 against 0.137 on the same scores).
 - **Training past ~30 epochs** without the auxiliary and pool losses: train loss falls from
-  3.87 to 0.57 while validation peaks at epoch 30 and then decays.
+  3.87 to 0.57 while validation peaks at epoch 30 and then decays to 0.166. With the auxiliary
+  and pool terms the curve is flat from epoch 20 to 40 (0.195–0.212, inside noise), which is
+  why 25 epochs are shipped rather than 40.
+- **Raising the raster resolution** (schematic 1.29 -> 1.83 px/mm, layout 2.0 -> 2.6) was
+  prepared but abandoned: the second cache is ~10 GB and building it starved the training job
+  of disk on this machine. It remains the most promising untested lever, because at 1.29 px/mm
+  KiCad's 2.54 mm pin pitch is only 3.3 px and the network almost certainly cannot count pins.
 
 ## 9. Determinism
 

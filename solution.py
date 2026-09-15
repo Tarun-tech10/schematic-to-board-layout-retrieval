@@ -71,8 +71,8 @@ SCH_SCALE = SCH_PXMM / (SCH_DPI / 25.4)
 LAY_SCALE = LAY_PXMM / (LAY_DPI / 25.4)
 SPM, LPM = SCH_DPI / 25.4, LAY_DPI / 25.4
 
-N_MODELS = int(os.environ.get("SBL_NM",3))
-EPOCHS = int(os.environ.get("SBL_EP",55))
+N_MODELS = int(os.environ.get("SBL_NM", 3))
+EPOCHS = int(os.environ.get("SBL_EP", 25))
 BATCH = 48
 LR = 2.0e-3
 WD = 3.0e-4
@@ -85,7 +85,7 @@ AUX_W = 1.0             # each tower predicts the other view's descriptors
 SEED0 = 1234
 THREADS = 8
 RIDGE_LAM = 3.0
-BLEND = 0.25            # weight of the descriptor-ridge score against the network score
+BLEND = 0.25            # weight of the descriptor ridge against the network, tuned on the holdout
 SINK_TAU = 0.5          # dense Sinkhorn temperature; 0 disables
 SINK_IT = 60
 
@@ -535,7 +535,11 @@ def main():
     Ln = LMn[lte] / (np.linalg.norm(LMn[lte], axis=1, keepdims=True) + 1e-9)
     ridge = P @ Ln.T
 
-    dense = (1 - BLEND) * net + BLEND * ridge
+    # both matrices are standardised before blending -- a cosine of embeddings and a cosine of
+    # descriptor vectors do not live on the same scale
+    def z(x):
+        return (x - x.mean()) / (x.std() + 1e-9)
+    dense = (1 - BLEND) * z(net) + BLEND * z(ridge)
     if SINK_TAU > 0:
         dense = dense_sinkhorn(dense, SINK_IT, SINK_TAU)
 

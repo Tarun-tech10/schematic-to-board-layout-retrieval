@@ -10,8 +10,9 @@ OUT  = sys.argv[2] if len(sys.argv) > 2 else 'C:/Users/tarun/OneDrive/Desktop/ER
 os.makedirs(OUT, exist_ok=True)
 
 SCH_DPI, LAY_DPI = 96.0, 192.0          # verified: A4 sheets = 1123x794 px; 2.54 mm pad pitch = 19.2 px
-SCH_W, SCH_H, SCH_PXMM = 384, 288, 1.293
-LAY_S, LAY_PXMM        = 224, 2.0
+SCH_W = int(os.environ.get('SBL_SW', 384)); SCH_H = int(os.environ.get('SBL_SH', 288))
+SCH_PXMM = float(os.environ.get('SBL_SPX', 1.293))
+LAY_S = int(os.environ.get('SBL_LS', 224)); LAY_PXMM = float(os.environ.get('SBL_LPX', 2.0))
 SCH_SCALE = SCH_PXMM / (SCH_DPI / 25.4)
 LAY_SCALE = LAY_PXMM / (LAY_DPI / 25.4)
 

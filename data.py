@@ -1,5 +1,6 @@
 import numpy as np, json, pandas as pd
-C='cache'; D='C:/Users/tarun/OneDrive/Desktop/ERIS/SBL_DATA'
+import os as _os
+C=_os.environ.get('SBL_CACHE','cache'); D='C:/Users/tarun/OneDrive/Desktop/ERIS/SBL_DATA'
 
 def metafeat(M, kind):
     X=np.log1p(np.maximum(M,0.0)).astype(np.float32)
