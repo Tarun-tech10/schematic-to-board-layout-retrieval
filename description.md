@@ -185,12 +185,14 @@ before numpy and torch are imported; epoch and model counts are constants.
 
 ## 10. Runtime
 
-End to end on one RTX 3050 (6 GB) with 16 GB of system RAM: **62 minutes** — 19 for
-rasterising all 11 400 images, 41 for three models of 25 epochs over 4700 pairs, 2 for
-inference and scoring. The rasterisation figure is pessimistic for this box specifically: the
-two memmaps total 5.4 GB against 16 GB of RAM that was already under pressure, and standalone
-the same work measures about 200 seconds on 20 threads. On a machine with real memory headroom
-the total should land near 50 minutes.
+End to end on one RTX 3050 (6 GB) with 16 GB of system RAM: **53 minutes** — 8 for rasterising
+all 11 400 images, 43 for three models of 25 epochs over 4700 pairs, 2 for inference and
+scoring. Rasterisation measured 19 minutes on a first run against a cold page cache and 8 on a
+warm one; standalone the same work takes about 200 seconds on 20 threads, so on a machine with
+real memory headroom the whole pipeline should land near 50 minutes.
+
+Disabling cuDNN autotuning costs 3% of step time (0.123 to 0.126 s/step at batch 48), which is
+the correct trade for an execution plan that does not depend on what the host measures.
 
 ## 11. Files
 
