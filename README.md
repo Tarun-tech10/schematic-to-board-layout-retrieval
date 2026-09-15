@@ -158,7 +158,9 @@ from geometry, and at the working resolution (1.3â€“2.0 px/mm) rendered tex
       25 epochs ship rather than 40.
 - [x] Blend weight and Sinkhorn temperature tuned on the holdout: a broad plateau, every
       blend 0.1-0.3 with tau 0.3-0.8 landing in 0.181-0.189, so the middle (0.25, 0.5) ships.
-- [ ] Final run: 3 seeds on all 4700 pairs, dihedral TTA, submission.
+- [x] Final run: 3 seeds x 25 epochs on all 4700 pairs, dihedral TTA, ridge blend, dense
+      Sinkhorn. 62 minutes end to end on one RTX 3050; `submission.csv` is its output and
+      passes every format rule in `check_submission.py`.
 - [ ] Sweep resolution / px-per-mm â€” the current layout raster may be too coarse to count 0603 pads.
 - [ ] Seed ensemble plus D4 test-time augmentation on the layout tower.
 - [ ] Blend the CNN score with the scalar-feature scorer.

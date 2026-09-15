@@ -183,7 +183,16 @@ Fixed execution plan: no wall-clock guards, no throughput probes, no fallback br
 are set for torch, numpy and python; thread counts and `OMP_DYNAMIC`/`MKL_DYNAMIC` are pinned
 before numpy and torch are imported; epoch and model counts are constants.
 
-## 10. Files
+## 10. Runtime
+
+End to end on one RTX 3050 (6 GB) with 16 GB of system RAM: **62 minutes** — 19 for
+rasterising all 11 400 images, 41 for three models of 25 epochs over 4700 pairs, 2 for
+inference and scoring. The rasterisation figure is pessimistic for this box specifically: the
+two memmaps total 5.4 GB against 16 GB of RAM that was already under pressure, and standalone
+the same work measures about 200 seconds on 20 threads. On a machine with real memory headroom
+the total should land near 50 minutes.
+
+## 11. Files
 
 - `solution.py` — self-contained; `python3 solution.py <public_dir> <submission_csv>`. Writes a
   valid submission before training begins and overwrites it with the model result.

@@ -4,6 +4,7 @@ cache/
 *.pt
 *.npy
 *.csv
+!submission.csv
 !sample_submission_head.csv
 venv/
 __pycache__/
