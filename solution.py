@@ -71,8 +71,8 @@ SCH_SCALE = SCH_PXMM / (SCH_DPI / 25.4)
 LAY_SCALE = LAY_PXMM / (LAY_DPI / 25.4)
 SPM, LPM = SCH_DPI / 25.4, LAY_DPI / 25.4
 
-N_MODELS = int(os.environ.get("SBL_NM", 3))
-EPOCHS = int(os.environ.get("SBL_EP", 25))
+N_MODELS = 3            # independently seeded models, averaged
+EPOCHS = 25             # holdout is flat from epoch 20 to 40, so the short schedule ships
 BATCH = 48
 LR = 2.0e-3
 WD = 3.0e-4
