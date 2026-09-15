@@ -473,7 +473,15 @@ def dense_sinkhorn(S, iters, tau):
 def main():
     data_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
     out_path = sys.argv[2] if len(sys.argv) > 2 else 'submission.csv'
-    torch.backends.cudnn.benchmark = True
+    # Fixed execution plan.  cuDNN autotuning is OFF: with benchmark=True the convolution
+    # algorithm is chosen by timing candidates on whatever GPU happens to be present, so the
+    # arithmetic performed would depend on measured runtime.  deterministic=True then pins the
+    # choice to algorithms with reproducible output, and TF32 is disabled so matmul precision
+    # does not vary with the host's compute capability.
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
     torch.set_num_threads(THREADS)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
