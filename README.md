@@ -1,12 +1,12 @@
-# Schematic â†’ Board-Layout Retrieval
+# Schematic → Board-Layout Retrieval
 
-Cross-view retrieval: given a **schematic** image (logical view â€” symbols and nets), pick which of
-**20 candidate PCB layout** images (physical view â€” copper, pads, silkscreen) implements the same
+Cross-view retrieval: given a **schematic** image (logical view — symbols and nets), pick which of
+**20 candidate PCB layout** images (physical view — copper, pads, silkscreen) implements the same
 design. Metric is chance-corrected **MRR** over the fixed 20-candidate pool
 (`chance = (1/20)*sum_{r=1..20} 1/r = 0.17989`, corrected score `max(0,(MRR-chance)/(1-chance))`,
 reporting floor 0.02).
 
-This repo is the working code for that task. It is **work in progress** â€” see *Status* at the bottom.
+This repo is the working code for that task. It is **work in progress** — see *Status* at the bottom.
 
 ---
 
@@ -57,8 +57,8 @@ through-hole pad / via `(79,172,227)`, SMD pad `(132,116,220)`, `F.SilkS (242,23
 
 * Colours are quantised to 15 bits and looked up in a precomputed table, so decomposition is one
   fancy-index per image rather than a per-pixel distance computation.
-* Each pixel is *unmixed* against the background â€” `alpha = clip(dot(x-bg, p-bg) / |p-bg|^2, 0, 1)`
-  with the best-fitting palette entry â€” so antialiased one-pixel wires keep their mass instead of
+* Each pixel is *unmixed* against the background — `alpha = clip(dot(x-bg, p-bg) / |p-bg|^2, 0, 1)`
+  with the best-fitting palette entry — so antialiased one-pixel wires keep their mass instead of
   being rounded away to background. Anything no palette entry explains lands in a catch-all channel.
 * Each channel is then area-downsampled to a fixed **px-per-mm**, not to a fixed box, so a 0603 pad
   is the same size in every layout. Canvas: schematic `288x384x5` at 1.293 px/mm,
@@ -72,17 +72,17 @@ The whole corpus (11 400 images) preprocesses in **~200 s** on 20 threads.
 
 ## Model
 
-`model.py` â€” a two-tower encoder, separate weights per view because the two views share no visual
+`model.py` — a two-tower encoder, separate weights per view because the two views share no visual
 vocabulary. Each tower is a 6-stage double-conv CNN, then concat(GAP, GMP, MLP(scalars)), then a
 256-d L2-normalised embedding. Score is the dot product.
 
-`train.py` â€” symmetric InfoNCE over in-batch pairs, optionally plus a listwise softmax over each
+`train.py` — symmetric InfoNCE over in-batch pairs, optionally plus a listwise softmax over each
 training query's own 20-candidate pool (`--poolw`), which trains directly against the organisers'
 hard negatives. Layouts get full D4 plus scale/translate jitter (a board is the same board rotated);
 schematics get milder jitter only.
 
-Validation holds out 700 train queries **and their layouts** â€” a held-out layout is never a positive
-during training â€” and scores the official 20-candidate pools with the exact tie-aware
+Validation holds out 700 train queries **and their layouts** — a held-out layout is never a positive
+during training — and scores the official 20-candidate pools with the exact tie-aware
 expected-reciprocal-rank the leaderboard uses (`ev.py`).
 
 ## Results so far
@@ -107,7 +107,7 @@ is not (complexity matching and candidate frequency are both clean), and what th
 version of the matching constraint looks like.
 
 Useful negative result: the organisers' "complexity-matched" distractor pools are only **loosely**
-matched â€” pool spread is 0.95x the global spread on every statistic measured. Coarse size and
+matched — pool spread is 0.95x the global spread on every statistic measured. Coarse size and
 complexity therefore still carry real signal, which is where the 0.0815 comes from.
 
 ## Running it
@@ -124,14 +124,14 @@ official pool, training directly against the organisers' hard negatives.
 
 **Read [LEAK.md](LEAK.md) before touching anything that uses pool membership.**
 
-## Ground rules (from the brief â€” please keep to these)
+## Ground rules (from the brief — please keep to these)
 
 The pairing must come from the circuit's own visual structure. Not allowed: external parts lists,
 netlists or design-repository indexes; matching images, ids or hashes against any public repo or CAD
 dataset; **reading title-block text, project names, authors, dates or silkscreen strings** to match
 the two views; id-based or positional hardcoding; tuning against the test relevances; hand-matching
-the test set. The palette and scale work above is deliberately text-free â€” everything is measured
-from geometry, and at the working resolution (1.3â€“2.0 px/mm) rendered text is not legible.
+the test set. The palette and scale work above is deliberately text-free — everything is measured
+from geometry, and at the working resolution (1.3–2.0 px/mm) rendered text is not legible.
 
 ## Status / next steps
 
@@ -161,7 +161,7 @@ from geometry, and at the working resolution (1.3â€“2.0 px/mm) rendered tex
 - [x] Final run: 3 seeds x 25 epochs on all 4700 pairs, dihedral TTA, ridge blend, dense
       Sinkhorn. 62 minutes end to end on one RTX 3050; `submission.csv` is its output and
       passes every format rule in `check_submission.py`.
-- [ ] Sweep resolution / px-per-mm â€” the current layout raster may be too coarse to count 0603 pads.
+- [ ] Sweep resolution / px-per-mm — the current layout raster may be too coarse to count 0603 pads.
 - [ ] Seed ensemble plus D4 test-time augmentation on the layout tower.
 - [ ] Blend the CNN score with the scalar-feature scorer.
 - [ ] Package as `solution.py` taking `argv[1]`=public dir, `argv[2]`=output CSV, self-contained,
